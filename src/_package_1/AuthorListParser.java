@@ -6,17 +6,10 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiPredicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-
 
 
 public class AuthorListParser {
@@ -28,13 +21,13 @@ public class AuthorListParser {
     private static final int TOKEN_GROUP_LENGTH = 4; // number of entries for a token
 
     // the following are offsets of an entry in a group of entries for one token
-    private static final int offsettoken = 0; // String -- token itself;
+    private static final int OFF_SET_TOKEN = 0; // String -- token itself;
 
-    private static final int offsettokenabbr = 1; // String -- token abbreviation;
+    private static final int OFF_SET_TOKEN_ABBR = 1; // String -- token abbreviation;
 
-    private static final int offsettikenname = 2; 
+    private static final int OFF_SET_TOKEN_NAME = 2;
     
-    private static final int offsettokenset = 3;
+    private static final int OFF_SET_TOKEN_SET = 3;
     
     // Character -- token terminator (either " " or
     // "-") comma)
@@ -70,13 +63,28 @@ public class AuthorListParser {
     /**
      * Builds a new array of strings with stringbuilder. Regarding to the name affixes.
      *
+     * @param indexArray array of index values
+     * @param nameList list of names
      * @return New string with correct seperation
      */
-    private static StringBuilder buildwithaffix(Collection<Integer> indexArray, List<String> nameList) {
+    private static StringBuilder buildWithAffix(Collection<Integer> indexArray, List<String> nameList) {
         StringBuilder stringBuilder = new StringBuilder();
         // avoidedTimes needs to be increased by the count of avoided terms for correct odd/even calculation
         int avoidedTimes = 0;
         for (int i = 0; i < nameList.size(); i++) {
+
+            stringBuilder.append(nameList.get(i));
+            if (indexArray.contains(i) || (((i+avoidedTimes)%2) ==0)) {
+                stringBuilder.append(',');
+                if (indexArray.contains(i)) {
+                    avoidedTimes++;
+                }
+            } else {
+                stringBuilder.append(';');
+            }
+
+
+            /*
             if (indexArray.contains(i)) {
                 // We hit a name affix
                 stringBuilder.append(nameList.get(i));
@@ -93,6 +101,7 @@ public class AuthorListParser {
                     stringBuilder.append(';');
                 }
             }
+            */
         }
         return stringBuilder;
     }
@@ -145,7 +154,7 @@ public class AuthorListParser {
 
                 if ((valuePartsCount % 2) == 0) {
                     // We hit the described special case with name affix like Jr
-                    listOfNames = buildwithaffix(avoidIndex, arrayNameList).toString();
+                    listOfNames = buildWithAffix(avoidIndex, arrayNameList).toString();
                 }
             }
         }
@@ -159,6 +168,7 @@ public class AuthorListParser {
         List<Author> au = new ArrayList<>(5); // 5 seems to be reasonable initial size
         while (ts < original.length()) {
             getauthor().ifPresent(au::add);
+            ts++;
         }
         return new AuthorList(au);
     }
@@ -204,14 +214,14 @@ public class AuthorListParser {
                     }
                     if (vonStart < 0) {
                         if (!tokenCase) {
-                            int previousTermToken = (tokens.size() - TOKEN_GROUP_LENGTH - TOKEN_GROUP_LENGTH) + offsettikenname;
+                            int previousTermToken = (tokens.size() - TOKEN_GROUP_LENGTH - TOKEN_GROUP_LENGTH) + OFF_SET_TOKEN_NAME;
                             if ((previousTermToken >= 0) && tokens.get(previousTermToken).equals('-')) {
                                 // We are in a first name which contained a hyphen
                                 break;
                             }
 
                             int thisTermToken = previousTermToken + TOKEN_GROUP_LENGTH;
-                            if ((thisTermToken >= 0) && tokens.get(thisTermToken).equals('-')) {
+                            if (tokens.get(thisTermToken).equals('-')) {
                                 // We are in a name which contained a hyphen
                                 break;
                             }
@@ -247,7 +257,7 @@ public class AuthorListParser {
             if (vonStart < 0) { // no 'von part'
                 lastPartEnd = tokens.size();
                 lastPartStart = tokens.size() - TOKEN_GROUP_LENGTH;
-                int index = (tokens.size() - (2 * TOKEN_GROUP_LENGTH)) + offsettikenname;
+                int index = (tokens.size() - (2 * TOKEN_GROUP_LENGTH)) + OFF_SET_TOKEN_NAME;
                 if (index > 0) {
                     Character ch = (Character) tokens.get(index);
                     if (ch == '-') {
@@ -319,11 +329,11 @@ public class AuthorListParser {
         }
 
         // Third step: do actual splitting, construct Author object
-        String firstPart = firstPartStart < 0 ? null : concatTokens(tokens, firstPartStart, firstPartEnd, offsettoken, false);
-        String firstAbbr = firstPartStart < 0 ? null : concatTokens(tokens, firstPartStart, firstPartEnd, offsettokenabbr, true);
-        String vonPart = vonPartStart < 0 ? null : concatTokens(tokens, vonPartStart, vonPartEnd, offsettoken, false);
-        String lastPart = lastPartStart < 0 ? null : concatTokens(tokens, lastPartStart, lastPartEnd, offsettoken, false);
-        String jrPart = jrPartStart < 0 ? null : concatTokens(tokens, jrPartStart, jrPartEnd, offsettoken, false);
+        String firstPart = firstPartStart < 0 ? null : concatTokens(tokens, firstPartStart, firstPartEnd, OFF_SET_TOKEN, false);
+        String firstAbbr = firstPartStart < 0 ? null : concatTokens(tokens, firstPartStart, firstPartEnd, OFF_SET_TOKEN_ABBR, true);
+        String vonPart = vonPartStart < 0 ? null : concatTokens(tokens, vonPartStart, vonPartEnd, OFF_SET_TOKEN, false);
+        String lastPart = lastPartStart < 0 ? null : concatTokens(tokens, lastPartStart, lastPartEnd, OFF_SET_TOKEN, false);
+        String jrPart = jrPartStart < 0 ? null : concatTokens(tokens, jrPartStart, jrPartEnd, OFF_SET_TOKEN, false);
 
         if ((firstPart != null) && (lastPart != null) && lastPart.equals(lastPart.toUpperCase(Locale.ROOT)) && (lastPart.length() < 5)
                 && (Character.UnicodeScript.of(lastPart.charAt(0)) != Character.UnicodeScript.HAN)) {
@@ -358,7 +368,7 @@ public class AuthorListParser {
         }
         int updatedStart = start + TOKEN_GROUP_LENGTH;
         while (updatedStart < end) {
-            result.append(tokens.get((updatedStart - TOKEN_GROUP_LENGTH) + offsettikenname));
+            result.append(tokens.get((updatedStart - TOKEN_GROUP_LENGTH) + OFF_SET_TOKEN_NAME));
             result.append((String) tokens.get(updatedStart + offset));
             if (dotAfter) {
                 result.append('.');
